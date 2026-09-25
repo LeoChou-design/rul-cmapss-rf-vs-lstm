@@ -1,5 +1,9 @@
 # 以機器學習法預測航空引擎剩餘壽命—比較隨機森林與長短期記憶網路
 
+<a id="zh"></a>
+
+**中文** | [English](#english)
+
 TAAI 2025 論文的資料處理、模型訓練與圖表產生程式。
 
 ---
@@ -242,3 +246,167 @@ C:\Users\test\anaconda3\python.exe src\make_figures.py
 - **參考文獻**（`references/`）：著作權歸各論文作者與出版方所有，
   重製與再散布須依各篇授權條款（多數為 CC BY 4.0，詳見
   [`references/README.md`](references/README.md)）。
+
+---
+
+<a id="english"></a>
+
+[中文](#zh) | **English**
+
+# Predicting Aircraft Engine Remaining Useful Life with Machine Learning: Random Forest vs. LSTM
+
+Data processing, model training, and figure-generation code for the TAAI 2025 paper.
+
+## 1. Paper & Conference
+
+| Item | Detail |
+|---|---|
+| Title | Predicting Aircraft Engine Remaining Useful Life with Machine Learning — Comparing Random Forest and Long Short-Term Memory Networks (paper written in Chinese) |
+| Author | Li-Yang Chou (周理陽) |
+| Affiliation | Department of Mechanical Engineering, National Central University, Taiwan |
+| E-mail | 112303573@cc.ncu.edu.tw |
+| Submission ID | DD-0574 |
+| Track | Domestic Track, extended-abstract submission, poster presentation |
+| Keywords | Remaining useful life, Random Forest, LSTM, C-MAPSS, predictive maintenance |
+
+### Conference
+
+| Item | Detail |
+|---|---|
+| Full name | The 30th International Conference on Technologies and Applications of Artificial Intelligence (2025 年人工智慧與應用研討會) |
+| Short name | TAAI 2025 |
+| Organizer | Taiwanese Association for Artificial Intelligence (TAAI) |
+| Co-organizers | Academia Sinica; National Taiwan Normal University |
+| Date | 13-14 December 2025 |
+| Venue | National Taiwan Normal University, Heping Campus 2, Taipei |
+| Theme | AI-driven cross-disciplinary scientific innovation |
+| Tracks | International, Domestic, Industry tracks, plus special sessions and competitions |
+| Website | https://taai2025.org |
+| Review | At least three reviewers per submission |
+| Key dates | Submission deadline 2025-09-27 (extended twice) / notification 2025-10-13 / camera-ready 2025-11-08 |
+| Proof of attendance | `(taai2025)DD-0574.pdf` (Certification of Attendance) |
+
+### Abstract (English translation of the Chinese extended abstract)
+
+With the advance of Industry 4.0, smart equipment management has become key to raising production efficiency and ensuring operational safety. In aviation, predicting the Remaining Useful Life (RUL) of aircraft engines estimates how long a component can run safely before failure, supporting predictive-maintenance decisions that schedule maintenance sensibly and reduce unplanned downtime.
+
+Early RUL prediction relied on traditional machine learning such as Random Forest (RF), Support Vector Machines (SVM) and Multi-Layer Perceptrons (MLP). RF is stable with small samples and selects key features effectively, but as sensor dimensionality grows, traditional methods struggle to capture nonlinear relationships and long-term dependencies. Long Short-Term Memory (LSTM) networks have recently become mainstream for their time-series modeling ability. Existing work mostly optimizes each model separately and lacks a systematic comparison.
+
+Using the FD001 subset of NASA C-MAPSS as the testbed, this study systematically compares the suitability and performance of RF and LSTM for RUL prediction under a consistent preprocessing pipeline and hyperparameter optimization. Preprocessing includes raw sensor cleaning and feature engineering, with RF feature importance used to select the parameters most influential on engine life; the LSTM is tuned with Optuna over hidden units, sliding-window size, learning rate and dropout. Both models are evaluated with RMSE and MAE.
+
+The LSTM outperforms RF on both metrics, indicating stronger feature extraction for the nonlinear and long-term-dependent patterns in C-MAPSS. However, LSTM errors have a wider interquartile range and are more sensitive to hyperparameters, whereas RF errors are more concentrated and stable. If high accuracy is the priority, the LSTM is recommended; if stability or interpretability matters more, RF offers more consistent performance at lower computational cost, suitable for resource-constrained settings.
+
+> The original is a 2-page A4 extended abstract without a separate abstract field; the text above is compiled from its sections.
+
+## 2. Data
+
+The **FD001** subset of the NASA C-MAPSS Turbofan Engine Degradation Simulation Data Set, simulating turbofan degradation under a single operating condition.
+
+| File | Content | Size |
+|---|---|---|
+| `data/train_FD001.txt` | 100 engines, each run to failure | 20,631 rows x 26 cols |
+| `data/test_FD001.txt` | 100 engines, truncated before failure | 13,096 rows x 26 cols |
+| `data/RUL_FD001.txt` | True RUL of the 100 test engines | 100 rows |
+
+Source and column details: [`data/README_data.md`](data/README_data.md).
+
+## 3. Method
+
+### Data processing (`src/cmapss.py`, shared by both models)
+
+1. **Sensor cleaning**: drop sensors that are constant throughout (by variance). For FD001 this removes `s1, s5, s10, s16, s18, s19`, keeping 15.
+2. **RUL labels**: training engines run to failure, so `RUL(t) = max cycle - t`, then piecewise-linear capping `RUL = min(RUL, 125)`; about 39.4% of samples sit at the cap.
+3. **Normalization**: min-max, fit on the training set only to avoid test leakage.
+4. **Feature engineering**: rolling mean, rolling std and rolling slope (window 5) per sensor, using past observations only.
+
+Both models share the same preprocessing so performance differences can be attributed to the model itself.
+
+### Random Forest (`src/rf_baseline.py`)
+
+A 300-tree forest on the full feature set gives feature importances and the top 20 features are kept; then a grid over number of trees (200/500/1000), max depth (unlimited/12/20) and feature subset (`sqrt`/0.5) gives 12 configurations.
+
+### LSTM (`src/lstm_optuna.py`)
+
+Sequences are cut with a sliding window; the last time step feeds a fully connected layer that outputs RUL. 20% of training engines form a validation set used for early stopping and as the Optuna objective; the test set never takes part in the search.
+
+Optuna (TPE sampler) runs 30 trials over:
+
+| Hyperparameter | Range |
+|---|---|
+| Hidden units | 32 / 64 / 96 / 128 |
+| Layers | 1 / 2 |
+| Window size | 20 / 25 / 30 / 35 / 40 |
+| Dropout | 0.1 - 0.5 |
+| Learning rate | 1e-4 - 1e-2 (log scale) |
+| Batch size | 128 / 256 / 512 |
+
+### Evaluation
+
+For each test engine the last time point is predicted and compared with the 100 true values in `RUL_FD001.txt`; RMSE and MAE are computed.
+
+## 4. Results
+
+Test-set performance (LSTM: top 8 configurations by validation RMSE; RF: all 12 grid configurations):
+
+| Model | RMSE min | RMSE median | RMSE max | MAE min | MAE median | MAE max |
+|---|---|---|---|---|---|---|
+| LSTM | 14.18 | 14.39 | 14.70 | 10.11 | 10.46 | 10.89 |
+| RF | 18.53 | 18.92 | 19.28 | 13.34 | 13.71 | 14.04 |
+
+**Best configurations**
+
+- LSTM: 32 hidden units, 2 layers, window 40, dropout 0.24, lr 1.51e-3, batch 256 -> RMSE 14.50, MAE 10.40 (best test result among 30 trials: RMSE 13.99, MAE 10.11)
+- RF: 500 trees, max depth 12, `max_features="sqrt"` -> RMSE 18.53, MAE 13.34
+
+Figures: [`figures/fig1_mae_boxplot.png`](figures/fig1_mae_boxplot.png), [`figures/fig2_rmse_boxplot.png`](figures/fig2_rmse_boxplot.png). Per-run details in `results/rf_runs.csv` and `results/lstm_trials.csv`; feature importance ranking in `results/rf_feature_importance.csv`.
+
+**Environment and runtime**
+
+| Stage | Device | Environment | Time | Peak VRAM |
+|---|---|---|---|---|
+| Random Forest (12 configs) | CPU | `base` | 520.6 s | - |
+| LSTM (30 Optuna trials) | GPU (GTX 1060 3GB) | `Colab2025` | 518.7 s | 534.2 MiB |
+
+## 5. File Structure
+
+```
+RUL/
+├─ data/          FD001 raw data and data notes
+├─ src/
+│  ├─ cmapss.py       loading, RUL labels, sensor selection, feature engineering, windowing
+│  ├─ check_data.py   data size / column checks
+│  ├─ rf_baseline.py  Random Forest: importance selection + parameter grid
+│  ├─ lstm_optuna.py  LSTM + Optuna search
+│  └─ make_figures.py boxplots and summary tables
+├─ results/       per-run RMSE / MAE, feature importance, logs
+├─ figures/       Fig. 1, Fig. 2
+└─ references/    bibliography (see references/README.md)
+```
+
+## 6. How to Run
+
+The Chinese section above lists the original author's Anaconda paths; substitute your own Python interpreters. Random Forest needs scikit-learn only (no torch, to avoid an MKL/OpenMP conflict in the original `base` environment); the LSTM needs torch (and optionally optuna, otherwise the code falls back to random search over the same space).
+
+```bash
+python src/check_data.py
+python src/rf_baseline.py
+python src/lstm_optuna.py --trials 30
+python src/make_figures.py
+```
+
+## 7. References
+
+Four cited papers plus the original C-MAPSS documentation; openly available full texts are listed in [`references/`](references/README.md).
+
+1. Wang, H. et al. (2023). Remaining Useful Life Prediction of Aircraft Turbofan Engine Based on Random Forest Feature Selection and Multi-Layer Perceptron. Applied Sciences, 13(12), 7186.
+2. Ensarioglu, K.; Inkaya, T.; Emel, E. (2023). Remaining Useful Life Estimation of Turbofan Engines with Deep Learning Using Change-Point Detection Based Labeling and Feature Engineering. Applied Sciences, 13(21), 11893.
+3. Kundu, R. K.; Hoque, K. A. (2023). Explainable Predictive Maintenance is Not Enough: Quantifying Trust in Remaining Useful Life Estimation. Annual Conference of the PHM Society, 15(1).
+4. Mothilall, D.; van Zyl, T. L. (2024). An evaluation of the Long Short-Term Memory model for predictive maintenance applications in the aircraft industry. ACDSA 2024.
+5. Saxena, A.; Goebel, K.; Simon, D.; Eklund, N. (2008). Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation. PHM 2008.
+
+## 8. License
+
+Code (`src/`) and documentation written for this project are released under the MIT License, see [`LICENSE`](LICENSE). Not covered by it:
+
+- **C-MAPSS dataset** (`data/`): published by NASA Prognostics Center of Excellence, a US government work, free to use; cite reference 5.
+- **References** (`references/`): copyright belongs to the respective authors/publishers; see [`references/README.md`](references/README.md).
