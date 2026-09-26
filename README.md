@@ -247,6 +247,10 @@ C:\Users\test\anaconda3\python.exe src\make_figures.py
   重製與再散布須依各篇授權條款（多數為 CC BY 4.0，詳見
   [`references/README.md`](references/README.md)）。
 
+## 九、AI 使用揭露
+
+所有研究設計、方法與結論皆由本人獨立主導。AI 工具作為輔助，用於英文文法潤飾、對本人撰寫之程式進行除錯與重構、將實驗筆記本整理為可執行腳本，以及撰寫與翻譯 repo 文件。本人已逐行驗證所有代碼、結果與文稿，對研究真實性負完全責任。
+
 ---
 
 <a id="english"></a>
@@ -410,3 +414,7 @@ Code (`src/`) and documentation written for this project are released under the 
 
 - **C-MAPSS dataset** (`data/`): published by NASA Prognostics Center of Excellence, a US government work, free to use; cite reference 5.
 - **References** (`references/`): copyright belongs to the respective authors/publishers; see [`references/README.md`](references/README.md).
+
+## 9. AI Use Disclosure
+
+All research design, methods, and conclusions were led and completed independently by the author. AI tools were used as an aid for English grammar polishing, debugging and refactoring of code written by the author, organizing experiment notebooks into runnable scripts, and drafting and translating the documentation in this repository. The author has verified all code, results, and manuscripts line by line and takes full responsibility for the authenticity of the research. (English translation of the Chinese text above.)
